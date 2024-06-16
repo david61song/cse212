@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
         free_token_list(token_list, num_tokens);
     }
 
+
     // Find the location of directory written in dir_input and print the file in it.
     while (fgets(buff, MAX_BUFFER_SIZE, dir_input) != NULL) {
         char **token_list;

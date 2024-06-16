@@ -3,3 +3,5 @@ tags
 pa0
 tags
 my_outputs/output*
+.cache/
+.vscode/

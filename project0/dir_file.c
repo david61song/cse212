@@ -97,7 +97,37 @@ file_t* find_create_file(directory_t* dir, char* name, bool* is_create) {
 // You can implement this function using the above find_create_dir() 
 // and find_create_file() functions.
 void make_dir_and_file(directory_t* root_dir, char** token_list, int num_tokens) {
-    /* Fill this function */
+    directory_t *parent_dir;
+    directory_t *dir;
+    file_t* file;
+    char **token_ptr;
+    bool is_create;
+    int i;
+
+    is_create = false;
+    token_ptr = token_list;
+    parent_dir = root_dir;
+
+    // if last token is empty, all tokens are directories.
+
+    for (i = 0 ; i < num_tokens - 1; i++){
+        dir = find_create_dir(parent_dir, *token_ptr, &is_create);
+        if (is_create){
+            parent_dir->dir_list[parent_dir->num_dirs] = dir;
+            parent_dir->num_dirs ++;
+        }
+        parent_dir = dir;
+        token_ptr ++;
+        is_create = false;
+    }
+
+    file = find_create_file(parent_dir, *token_ptr, &is_create);
+    if (is_create){
+        parent_dir->file_list[parent_dir->num_files] = file;
+        parent_dir->num_files++;
+    }
+    is_create = false;
+
 }
 
 void free_dir_and_file(directory_t* dir) {

@@ -1,4 +1,4 @@
-CC = gcc -std=c99
+CC = clang -std=c99 # For apple silicon mac
 CFLAGS = -g -I ./ -I ./include
 OBJS = ./utils.o ./main.o ./dir_file.o
 TARGET = pa0
