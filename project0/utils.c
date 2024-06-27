@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "dir_file.h"
 #include "utils.h"
@@ -38,18 +39,16 @@ int parse_str_to_list(const char* str, char** token_list) {
     copied_str = malloc(sizeof(char) * (str_size + 1));
     strcpy(copied_str, str + 1);
 
-    if (copied_str[str_size - 1] == '\n')
-        copied_str[str_size - 1] = '\0';
 
-    while((token = strsep(&copied_str, "/")) != NULL){
+    while((token = strsep(&copied_str, "/\n")) != NULL){
+        if (strlen(token) == 0)
+            break;
         *curr_ptr = malloc(sizeof(char) * (strlen(token) + 1));
 	    strcpy(*curr_ptr, token);
         curr_ptr ++;
 	    total_token_size ++;
     }
-
     curr_ptr = token_list;
-
 
     return total_token_size;
 }

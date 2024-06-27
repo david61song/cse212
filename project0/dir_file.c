@@ -25,7 +25,7 @@ directory_t* create_dir(char* name) {
 directory_t* find_dir(directory_t* dir, char* name) {
     assert(dir != NULL);
     assert(name != NULL);
-    assert(strlen(name) > 0);
+    /*assert(strlen(name) > 0);*/
 
     for (int i = 0; i < dir->num_dirs; i++) {
         if (strcmp(dir->dir_list[i]->name, name) == 0)
