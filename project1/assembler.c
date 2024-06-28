@@ -9,7 +9,33 @@
  * For debug option. If you want to debug, set 1.
  * If not, set 0.
  */
-#define DEBUG 0
+#define DEBUG 1
+
+
+
+
+
+/******************************************************
+ * Debugging purpose function 
+ *******************************************************/
+
+#ifdef DEBUG
+/* Prints file contents */
+void print_file_contents(FILE *data_segment) {
+    char ch;
+    
+    rewind(data_segment);
+    
+    while ((ch = fgetc(data_segment)) != EOF) {
+        putchar(ch);
+    }
+    putchar('\n');
+}
+#endif
+
+
+
+
 
 #define MAX_SYMBOL_TABLE_SIZE   1024
 #define MEM_TEXT_START          0x00400000
@@ -100,7 +126,9 @@ void symbol_table_add_entry(symbol_t symbol)
 {
     SYMBOL_TABLE[symbol_table_cur_index++] = symbol;
 #if DEBUG
+    printf("---Added symbol table entry : ---\n");
     printf("%s: 0x%08x\n", symbol.name, symbol.address);
+    printf("---------------------\n");
 #endif
 }
 
@@ -232,33 +260,51 @@ void make_symbol_table(FILE *input)
 {
     char line[1024] = {0};
     uint32_t address = 0;
+    symbol_t data_symbol;
+    char *label;
     enum section cur_section = MAX_SIZE;
 
-    /* Read each section and put the stream */
+    /* Read each section and put the stream. Reading stops if meet newline, or end of file. */
     while (fgets(line, 1024, input) != NULL) {
         char *temp;
-        char _line[1024] = {0};
+        char _line[1024] = {0}; /* tmp read line*/
         strcpy(_line, line);
         temp = strtok(_line, "\t\n");
 
         /* Check section type */
         if (!strcmp(temp, ".data")) {
-            /* blank */
             data_seg = tmpfile();
+            cur_section = DATA;
             continue;
         }
         else if (!strcmp(temp, ".text")) {
-            /* blank */
             text_seg = tmpfile();
+            cur_section = TEXT;
+            address = 0;
             continue;
         }
 
         /* Put the line into each segment stream */
+
         if (cur_section == DATA) {
-            /* blank */
+            fputs(line, data_seg);
+            if (strstr(line, ":") != NULL){
+                label = strtok(line, ":");
+                data_symbol.address = address + (uint32_t) MEM_DATA_START;
+                strcpy(data_symbol.name, label);
+                symbol_table_add_entry(data_symbol);
+            }
         }
         else if (cur_section == TEXT) {
-            /* blank */
+            fputs(line, text_seg);
+             if (strstr(line, ":") != NULL){
+                label = strtok(line, ":");
+                data_symbol.address = address + (uint32_t) MEM_TEXT_START;
+                strcpy(data_symbol.name, label);
+                symbol_table_add_entry(data_symbol);
+                address -= BYTES_PER_WORD;
+            }
+            
         }
 
         address += BYTES_PER_WORD;
@@ -334,3 +380,4 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
