@@ -15,33 +15,14 @@
 
 
 
-/******************************************************
- * Debugging purpose function 
- *******************************************************/
-
-#ifdef DEBUG
-/* Prints file contents */
-void print_file_contents(FILE *data_segment) {
-    char ch;
-    
-    rewind(data_segment);
-    
-    while ((ch = fgetc(data_segment)) != EOF) {
-        putchar(ch);
-    }
-    putchar('\n');
-}
-#endif
-
-
-
-
 
 #define MAX_SYMBOL_TABLE_SIZE   1024
 #define MEM_TEXT_START          0x00400000
 #define MEM_DATA_START          0x10000000
 #define BYTES_PER_WORD          4
 #define INST_LIST_LEN           22
+
+
 
 /******************************************************
  * Structure Declaration
@@ -110,6 +91,38 @@ uint32_t text_section_size = 0;
  * Function Declaration
  *******************************************************/
 
+ uint32_t find_label_address(char *var){
+    // Find the address of the variable in the symbol table
+    for (int i = 0; i < symbol_table_cur_index; i++) {
+        if (strcmp(SYMBOL_TABLE[i].name, var) == 0) {
+            return SYMBOL_TABLE[i].address;
+        }
+    }
+    return 0;
+ }
+
+ int is_la_instruction(const char* line) {
+    // Skip leading whitespace
+    while (*line && isspace(*line)) {
+        line++;
+    }
+
+    // Check if the line starts with "la"
+    if (strncmp(line, "la", 2) == 0) {
+        // Ensure "la" is followed by a space or tab
+        if (isspace(line[2])) {
+            return 1;
+        }
+        // Check if it's the end of the line (in case of no arguments)
+        if (line[2] == '\0' || line[2] == '#') {
+            return 1;
+        }
+    }
+
+    return 0;
+}      
+
+
 /* Change file extension from ".s" to ".o" */
 char* change_file_ext(char *str) {
     char *dot = strrchr(str, '.');
@@ -174,9 +187,9 @@ void record_text_section(FILE *output)
         rs = rt = rd = imm = shamt = addr = 0;
 #if DEBUG
         printf("0x%08x: ", cur_addr);
+        printf("Curr line-->%s", line);
 #endif
         /* Find the instruction type that matches the line */
-        /* blank */
 
         switch (type) {
             case 'R':
@@ -246,7 +259,10 @@ void make_binary_file(FILE *output)
 #endif
 
     /* Print text section size and data section size */
-    /* blank */
+    fputs(num_to_bits(text_section_size, 32), output);
+    fputs("\n", output);
+    fputs(num_to_bits(data_section_size, 32), output);
+    fputs("\n", output);
 
     /* Print .text section */
     record_text_section(output);
@@ -255,7 +271,6 @@ void make_binary_file(FILE *output)
     record_data_section(output);
 }
 
-/* Fill the blanks */
 void make_symbol_table(FILE *input)
 {
     char line[1024] = {0};
@@ -263,6 +278,11 @@ void make_symbol_table(FILE *input)
     symbol_t data_symbol;
     char *label;
     enum section cur_section = MAX_SIZE;
+    char* saveptr;
+    char *inst, *reg, *var;
+    char lui_inst[64];
+    int32_t var_address = 0;
+    char *delim = ", \t\n";
 
     /* Read each section and put the stream. Reading stops if meet newline, or end of file. */
     while (fgets(line, 1024, input) != NULL) {
@@ -277,39 +297,82 @@ void make_symbol_table(FILE *input)
             cur_section = DATA;
             continue;
         }
-        else if (!strcmp(temp, ".text")) {
+        else if (!strcmp(temp, ".text")) { /* temp -> first occured word */
             text_seg = tmpfile();
             cur_section = TEXT;
             address = 0;
             continue;
         }
-
         /* Put the line into each segment stream */
-
+        /* DATA segement */
         if (cur_section == DATA) {
             fputs(line, data_seg);
-            if (strstr(line, ":") != NULL){
-                label = strtok(line, ":");
+            if (strstr(temp, ":") != NULL){
+                label = strtok(temp, ":");
                 data_symbol.address = address + (uint32_t) MEM_DATA_START;
                 strcpy(data_symbol.name, label);
                 symbol_table_add_entry(data_symbol);
+
+                if (strstr(line, ".word") != NULL){
+                    address += BYTES_PER_WORD;
+                    data_section_size += 4;
+                }
             }
-        }
+            if (strcmp(temp, ".word") == 0){
+                address += BYTES_PER_WORD;
+                data_section_size += 4;
+            }
+        } 
+        /* TEXT segment */
         else if (cur_section == TEXT) {
-            fputs(line, text_seg);
-             if (strstr(line, ":") != NULL){
-                label = strtok(line, ":");
+            /* check label */
+            if (strstr(temp, ":") != NULL){
+                fputs(line, text_seg);
+                label = strtok(temp, ":");
                 data_symbol.address = address + (uint32_t) MEM_TEXT_START;
                 strcpy(data_symbol.name, label);
                 symbol_table_add_entry(data_symbol);
-                address -= BYTES_PER_WORD;
             }
-            
+            /* not label, instructions */
+            else {
+                /* Not la instruction, just puts line*/
+                if (is_la_instruction(line) == 0){
+                    fputs(line, text_seg);
+                    address += BYTES_PER_WORD;
+                    text_section_size += 4;
+                    continue;
+                }
+                /* la instruction parsing */
+                inst = strtok_r(line, delim, &saveptr);
+                if (inst != NULL) {
+                    reg = strtok_r(NULL, delim, &saveptr);
+                    var = strtok_r(NULL, delim, &saveptr);
+                    if (reg != NULL && var != NULL) {
+                        var_address = find_label_address(var);
+                        if (var_address != 0) {
+                            uint16_t upper = (var_address >> 16) & 0xFFFF;
+                            uint16_t lower = var_address & 0xFFFF;
+                            // Generate lui instruction
+                            sprintf(lui_inst, "\tlui\t%s, 0x%04x\n", reg, upper);
+                            fputs(lui_inst, text_seg);
+                            address += BYTES_PER_WORD;
+                            text_section_size += 4;
+                        // Generate ori instruction if lower 16 bits are non-zero
+                        if (lower != 0) {
+                            char ori_inst[64];
+                            sprintf(ori_inst, "\tori\t%s, %s, 0x%04x\n", reg, reg, lower);
+                            fputs(ori_inst, text_seg);
+                            address += BYTES_PER_WORD;
+                            text_section_size += 4;
+                            }
+                        } 
+                    }
+                }
+            }
         }
-
-        address += BYTES_PER_WORD;
     }
 }
+
 
 /******************************************************
  * Function: main

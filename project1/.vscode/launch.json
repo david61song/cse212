@@ -9,7 +9,7 @@
             "request": "launch",
             "name": "Debug",
             "program": "${workspaceFolder}/assembler",
-            "args": ["sample_input/example3.s"],
+            "args": ["sample_input/example1.s"],
             "cwd": "${workspaceFolder}"
         }
     ]
